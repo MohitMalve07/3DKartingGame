@@ -23,10 +23,10 @@ public class SpawnManager : NetworkBehaviour
     // Fixed spawn positions indexed by join order (0-based)
     private readonly Vector3[] spawnPositions = new Vector3[]
     {
-        new Vector3(223.830002f, 0.369382501f, -143.339996f),   // Player 1
-        new Vector3(220.330002f, 0.369382501f, -148.217575f),   // Player 2
-        new Vector3(223.580002f, 0.369382501f, -152.967575f),   // Player 3
-        new Vector3(220.330002f, 0.369382501f, -157.967575f)    // Player 4
+        new Vector3(223.830002f, 8.369382501f, -143.339996f),   // Player 1
+        new Vector3(220.330002f, 8.369382501f, -148.217575f),   // Player 2
+        new Vector3(223.580002f, 8.369382501f, -152.967575f),   // Player 3
+        new Vector3(220.330002f, 8.369382501f, -157.967575f)    // Player 4
     };
 
     // Default rotation for all spawned players

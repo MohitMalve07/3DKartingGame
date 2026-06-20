@@ -1904,6 +1904,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GlobalObjectIdHash: 339211088
   InScenePlacedSourceGlobalObjectIdHash: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
   ActiveSceneSynchronization: 0
@@ -1911,6 +1913,8 @@ MonoBehaviour:
   SpawnWithObservers: 1
   DontDestroyWithOwner: 0
   AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
 --- !u!114 &829170320
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1923,6 +1927,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d70cb5822dac0074d87f7995503dbd1a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
   resultsUI: {fileID: 0}
   resultsDelay: 2
 --- !u!4 &829170321
@@ -2577,6 +2582,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GlobalObjectIdHash: 1275938400
   InScenePlacedSourceGlobalObjectIdHash: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
   ActiveSceneSynchronization: 0
@@ -2584,6 +2591,8 @@ MonoBehaviour:
   SpawnWithObservers: 1
   DontDestroyWithOwner: 0
   AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
 --- !u!114 &997063463
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2596,6 +2605,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3c96070d2bd44744196ac1dac4c03569, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
   playerPrefab: {fileID: 908424823021231804, guid: fe775404e2fa5f04b9dad9d165689fac,
     type: 3}
   maxPlayers: 4

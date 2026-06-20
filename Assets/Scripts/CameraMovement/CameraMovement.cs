@@ -1,15 +1,29 @@
 using UnityEngine;
 using Unity.Netcode;
 using Unity.Cinemachine;
+using System.Collections;
 
 /// <summary>
 /// Attaches to the PLAYER PREFAB ONLY. On spawn, the local owner finds the scene's
 /// CinemachineCamera and assigns Follow/LookAt to this player's transform.
-/// 
-/// IMPORTANT: Do NOT attach this to the Main Camera or any scene camera.
-///            This script requires a PlayerMovement component on the same GameObject,
-///            which acts as a safety check to prevent accidental misuse.
-/// 
+///
+/// Uses a delayed coroutine-based initialization to avoid a Cinemachine timing issue
+/// where the CinemachineFollow component captures a stale reference frame when the
+/// target is assigned before the player's spawn position has settled.
+///
+/// WHY THIS IS NEEDED:
+/// CinemachineFollow with "Lock To Target With World Up" binding mode captures its
+/// internal reference frame (the coordinate system for Follow Offset) at the moment
+/// it first detects a target. In WebGL builds with Relay, OnNetworkSpawn() fires
+/// before the player transform reaches its final spawn position — the player may
+/// still be at origin (0,0,0) or mid-teleport from SpawnManager. Cinemachine locks
+/// to that stale frame and never recalculates, causing the camera to point at the
+/// wrong location. Manually toggling Binding Mode in the Inspector forces a
+/// recalculation, which is why that workaround works.
+///
+/// The fix: wait for the spawn position to settle, then assign targets + force
+/// Cinemachine to snap its internal state to the correct position.
+///
 /// SETUP:
 /// 1. Place a CinemachineCamera in the Game scene (NOT on the player prefab).
 /// 2. Attach this script to the root of the player prefab (same GameObject as NetworkObject).
@@ -22,6 +36,11 @@ public class CameraMovement : NetworkBehaviour
     public float minFOV = 60f;
     public float maxFOV = 80f;
     public float maxSpeed = 20f;
+
+    [Header("Initialization")]
+    [Tooltip("Number of frames to wait after spawn before assigning the camera. " +
+             "Gives the player transform time to reach its final spawn position.")]
+    public int framesToWait = 3;
 
     // Resolved at runtime — never serialized
     private CinemachineCamera vcam;
@@ -49,23 +68,52 @@ public class CameraMovement : NetworkBehaviour
             return;
         }
 
-        // Owner claims the scene camera
-        AssignCamera();
+        // Start the delayed camera assignment coroutine instead of assigning immediately.
+        // This ensures the player transform has settled at its final spawn position
+        // before Cinemachine captures its reference frame.
+        StartCoroutine(DelayedCameraAssignment());
     }
 
     private void Start()
     {
         // Offline mode: if no network session is running, assign camera immediately
+        // (no Relay/network timing issues in offline mode)
         if (!isNetworked)
         {
-            AssignCamera();
+            StartCoroutine(DelayedCameraAssignment());
         }
     }
 
     /// <summary>
-    /// Finds the scene's CinemachineCamera by component type (not by tag)
-    /// and points Follow + LookAt at this player's transform.
-    /// If the vcam isn't available yet (scene still loading), returns false to retry later.
+    /// Waits for the scene and player position to fully settle, then finds the
+    /// CinemachineCamera and assigns targets. Retries every frame if the vcam
+    /// isn't available yet (e.g., scene still loading after network transition).
+    /// </summary>
+    private IEnumerator DelayedCameraAssignment()
+    {
+        // Wait a few frames for:
+        // 1. SpawnManager to teleport the player to its spawn position
+        // 2. Rigidbody physics to settle
+        // 3. The scene's CinemachineCamera to initialize
+        for (int i = 0; i < framesToWait; i++)
+        {
+            yield return null;
+        }
+
+        Debug.Log($"[CameraMovement] Delayed init started after {framesToWait} frames. " +
+                  $"Player position: {transform.position}");
+
+        // Keep retrying until the CinemachineCamera is found
+        while (!AssignCamera())
+        {
+            yield return null;
+        }
+    }
+
+    /// <summary>
+    /// Finds the scene's CinemachineCamera, assigns Follow + LookAt, and forces
+    /// Cinemachine to snap to the correct position.
+    /// Returns false if the vcam isn't available yet (caller should retry).
     /// </summary>
     private bool AssignCamera()
     {
@@ -77,18 +125,34 @@ public class CameraMovement : NetworkBehaviour
 
         if (vcam == null)
         {
-            // Scene may still be loading — don't disable, just wait and retry
             Debug.Log("[CameraMovement] CinemachineCamera not found yet. Will retry...");
             return false;
         }
 
+        // Assign tracking targets
         vcam.Follow = transform;
         vcam.LookAt = transform;
+
+        // Force Cinemachine to snap its internal state to the correct position.
+        // This resets the CinemachineFollow reference frame so "Lock To Target With
+        // World Up" calculates its offset from the player's CURRENT position, not
+        // from wherever the player was when the target was first detected.
+        //
+        // We compute the expected camera position from the player's current position
+        // plus the Follow Offset that's configured on the CinemachineFollow component.
+        // This matches what the camera SHOULD be seeing.
+        Vector3 followOffset = new Vector3(0f, 5f, -7f); // Match Inspector Follow Offset
+        Vector3 desiredPosition = transform.position + transform.rotation * followOffset;
+        Quaternion desiredRotation = Quaternion.LookRotation(transform.position - desiredPosition, Vector3.up);
+
+        vcam.ForceCameraPosition(desiredPosition, desiredRotation);
+
         cameraAssigned = true;
 
         Debug.Log($"[CameraMovement] Cinemachine vcam '{vcam.gameObject.name}' now following "
                 + $"local player (Client {OwnerClientId}). "
-                + $"Follow={vcam.Follow.name}, LookAt={vcam.LookAt.name}");
+                + $"Follow={vcam.Follow.name}, LookAt={vcam.LookAt.name}. "
+                + $"Forced position: {desiredPosition}");
         return true;
     }
 
@@ -96,14 +160,8 @@ public class CameraMovement : NetworkBehaviour
     {
         if (isNetworked && !IsOwner) return;
 
-        // Keep retrying camera assignment until successful
-        if (!cameraAssigned)
-        {
-            AssignCamera();
-            return;
-        }
-
-        if (vcam == null || targetRb == null) return;
+        // Don't do FOV updates until camera is assigned
+        if (!cameraAssigned || vcam == null || targetRb == null) return;
 
         // Speed-based FOV effect
         float speed = targetRb.linearVelocity.magnitude;
